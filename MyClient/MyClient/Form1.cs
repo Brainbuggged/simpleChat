@@ -54,7 +54,7 @@ namespace MyClient
                   new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Send")),
                   new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", message))));
 
-              tcpSocket.Send(Encoding.UTF8.GetBytes(sendMessageDocument.ToString()));
+              tcpSocket.Send(GetBytesToSendFromDocument(sendMessageDocument));
          }
 
         delegate void Receive(string text);
@@ -74,6 +74,11 @@ namespace MyClient
             return message;
         }
 
+        private byte[] GetBytesToSendFromDocument(XDocument document)
+        {
+            return Encoding.UTF8.GetBytes(document.ToString());
+
+        }
         private void button1_Click(object sender, EventArgs e)
         {
             GetServerAddress();
