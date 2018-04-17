@@ -18,6 +18,9 @@ namespace MyClient
         Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Stream,
                                         ProtocolType.Tcp);
+
+        public delegate void Action<T>(string text);
+
         public Form1()
         {
             InitializeComponent();
@@ -26,7 +29,8 @@ namespace MyClient
         public void GetServerAddress()
         {
             byte[] bytes = new byte[500];
-             IPAddress mcastAddress = IPAddress.Parse("224.12.12.12");
+            var dictionary = new Dictionary<string, string>();
+            IPAddress mcastAddress = IPAddress.Parse("224.12.12.12");
              int  mcastPort = 4000;
             Socket mcastSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Dgram,
@@ -41,44 +45,75 @@ namespace MyClient
                                         SocketOptionName.AddMembership,
                                         mcastOption);
             mcastSocket.SendTo(Encoding.UTF8.GetBytes(LocalAddress + ":" + mcastPort), multicastEndPoint);
-            mcastSocket.ReceiveFrom(bytes, ref serverEndPoint);
-            Thread.Sleep(500);
+            
+            bytes = bytes.Take(mcastSocket.ReceiveFrom(bytes, ref serverEndPoint)).ToArray();
+            richTextBox1.AppendText(defineMessage(bytes));
+            
             tcpSocket.Connect(serverEndPoint);
-            MessageBox.Show(serverEndPoint.ToString());
+            
         }
 
-         void SendMessage(string message)
+         void SendMessage(XDocument document)
         {
-            var sendMessageDocument = new XDocument(
-                  new XElement("msg",
-                  new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Send")),
-                  new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", message))));
-
-              tcpSocket.Send(GetBytesToSendFromDocument(sendMessageDocument));
+              tcpSocket.Send(GetBytesToSendFromDocument(document));
          }
 
-         public delegate void Action<T>(string text);
+        public string defineMessage(byte[] bytes)
+        {
+            var dictionary = new Dictionary<string, string>();
+            var receivedMessage = GetDocumentFromReceivedBytes(bytes);
+            foreach (XElement elem in receivedMessage.Element("msg").Elements("data"))
+            {
+                dictionary.Add(elem.Attribute("key").Value, elem.Attribute("value").Value);
+            }
 
-     
+            if (dictionary["Type"] == "Send")
+            {
+
+                return $"{dictionary["Author"]} wrote  {dictionary["Text"]}";
+
+
+
+            }
+            if (dictionary["Type"] == "Name")
+            {
+
+                return $"{dictionary["Name"]} joined the chat";
+
+
+            }
+
+            return null;
+
+        }
 
         private  string  ReceiveBroadcastMessages()
         {
-            byte[] bytes = new byte[500];
-        
+            var bytes = new byte[500];
+         
             bytes = bytes.Take(tcpSocket.Receive(bytes)).ToArray();
-            return GetStringFromReceivedBytes(bytes);
-             
+
+            return defineMessage(bytes);
         }
 
         private byte[] GetBytesToSendFromDocument(XDocument document)
         {
             return Encoding.UTF8.GetBytes(document.ToString());
 
-        }
 
-        private string GetStringFromReceivedBytes(byte[] bytes)
+        }
+        private XDocument GetDocumentFromString(string message)
         {
-            return Encoding.UTF8.GetString(bytes);
+            var sendMessageDocument = new XDocument(
+                new XElement("msg",
+                    new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Send")),
+                    new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", message))));
+            return sendMessageDocument;
+
+        }
+        private XDocument GetDocumentFromReceivedBytes(byte[] bytes)
+        {
+            return XDocument.Parse(Encoding.UTF8.GetString(bytes));
 
         }
 
@@ -90,7 +125,8 @@ namespace MyClient
 
         private void button2_Click(object sender, EventArgs e)
         {
-            SendMessage(textBox1.Text);
+            
+            SendMessage(GetDocumentFromString(textBox1.Text));
         }
 
         private void textBox2_KeyUp(object sender, KeyEventArgs e)

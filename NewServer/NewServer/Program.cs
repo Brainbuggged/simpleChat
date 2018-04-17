@@ -44,7 +44,13 @@ namespace NewServer
                        
                        bytes = bytes.Take(mcastSocket.ReceiveFrom(bytes, ref clientEndPoint)).ToArray();
                         var clientAddress = Encoding.UTF8.GetString(bytes);
-                       bytes = Encoding.UTF8.GetBytes(serverTCPSocketEndPoint.ToString());
+                        var sendMessageDocument = new XDocument(
+                            new XElement("msg",
+                               new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Name")),
+                               new XElement("data", new XAttribute("key", "Name"), new XAttribute("value", "stupidName"))));
+
+
+                        bytes = Encoding.UTF8.GetBytes(sendMessageDocument.ToString());
                        clientEndPoints.Add(clientEndPoint);
                        mcastSocket.SendTo(bytes,clientEndPoint);      
                        Console.WriteLine(clientAddress +" подключился к чатику ");
@@ -92,12 +98,18 @@ namespace NewServer
                                     if (dictionary["Type"] == "Send")
                                     {
                                         message = " somebody wrote " + dictionary["Text"];
-                                        mySocket.Send(Encoding.UTF8.GetBytes(message));
+                                        var sendMessageDocument = new XDocument(
+                             new XElement("msg",
+                                new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Send")),
+                                new XElement("data", new XAttribute("key", "Author"), new XAttribute("value", "stupidName")),
+                                  new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", dictionary["Text"]))
+                                )); 
+
+
+                                        mySocket.Send(Encoding.UTF8.GetBytes(sendMessageDocument.ToString()));
                                         foreach (var address in clientEndPoints)
                                             dictionary.Clear();
                                         bytes = new byte[500];
-
-
                                     }
                                 }
                             });
