@@ -57,13 +57,9 @@ namespace MyClient
               tcpSocket.Send(GetBytesToSendFromDocument(sendMessageDocument));
          }
 
-        delegate void Receive(string text);
+         public delegate void Action<T>(string text);
 
-        public void DoSmth(string text)
-        {
-            richTextBox1.AppendText("\n"+text);
-
-        }
+     
 
         private  string  ReceiveBroadcastMessages()
         {
@@ -104,10 +100,10 @@ namespace MyClient
 
         private void timer1_Tick(object sender, EventArgs e)
         {
-            Receive my = DoSmth;
+            Action<string> myAction =  (str) => richTextBox1.AppendText("\n" + str);
             new Thread(() =>
             {
-                this.Invoke(my, ReceiveBroadcastMessages());
+                this.Invoke(myAction, ReceiveBroadcastMessages());
             }
              ).Start();
         }
