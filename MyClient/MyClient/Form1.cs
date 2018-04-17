@@ -70,8 +70,8 @@ namespace MyClient
             byte[] bytes = new byte[500];
         
             bytes = bytes.Take(tcpSocket.Receive(bytes)).ToArray();
-            string message = Encoding.UTF8.GetString(bytes);
-            return message;
+            return GetStringFromReceivedBytes(bytes);
+             
         }
 
         private byte[] GetBytesToSendFromDocument(XDocument document)
@@ -79,6 +79,13 @@ namespace MyClient
             return Encoding.UTF8.GetBytes(document.ToString());
 
         }
+
+        private string GetStringFromReceivedBytes(byte[] bytes)
+        {
+            return Encoding.UTF8.GetString(bytes);
+
+        }
+
         private void button1_Click(object sender, EventArgs e)
         {
             GetServerAddress();
