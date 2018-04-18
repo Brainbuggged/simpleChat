@@ -12,15 +12,15 @@ namespace NewServer
 {
     class Program
     {
-        static string Host = Dns.GetHostName();
-        static string localAddress = Dns.GetHostEntry(Host).AddressList[0].ToString();
-        static List<EndPoint> clientEndPoints = new List<EndPoint>();
-        static Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
+         string localAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0].ToString();
+         
+         Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
                                   SocketType.Stream,
                                   ProtocolType.Tcp);
-        static List<Socket> clientSockets = new List<Socket>();
 
-        private static void SendServerAddress()
+         Dictionary<Socket, string> dictionaryOfClientsAndGuids = new Dictionary<Socket, string>();
+
+        private  void SendServerAddress()
         {
             byte[] bytes = new byte[500];
             var  mcastSocket = new Socket(AddressFamily.InterNetwork,
@@ -38,77 +38,101 @@ namespace NewServer
             var serverTCPSocketEndPoint= new IPEndPoint(serverTCPAddress,mcastPort);
 
             Task.Run(() =>
-                {
+            {//КОСТЫЛЬ ИСПРАВИТЬ
+                int countOfusers = 0;
                     while (true)
                     {
                        
                        bytes = bytes.Take(mcastSocket.ReceiveFrom(bytes, ref clientEndPoint)).ToArray();
                         var clientAddress = Encoding.UTF8.GetString(bytes);
-                        var sendMessageDocument = new XDocument(
+                        var newClientSendMessageDocument = new XDocument(
                             new XElement("msg",
                                new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Name")),
-                               new XElement("data", new XAttribute("key", "Name"), new XAttribute("value", "stupidName"))));
+                               new XElement("data", new XAttribute("key", "Name"), new XAttribute("value", "Пользователь " + countOfusers))));
 
-
-                        bytes = Encoding.UTF8.GetBytes(sendMessageDocument.ToString());
-                       clientEndPoints.Add(clientEndPoint);
-                       mcastSocket.SendTo(bytes,clientEndPoint);      
-                       Console.WriteLine(clientAddress +" подключился к чатику ");
+                        bytes = Encoding.UTF8.GetBytes(newClientSendMessageDocument.ToString());
                        
+                       mcastSocket.SendTo(bytes,clientEndPoint);
+                     
+
+                        Console.WriteLine(clientAddress +" подключился к чатику ");
                     }
                 });
         }
 
-        private static void ReceiveBroadcastMessages()
+        private  void ReceiveBroadcastMessages()
         {
             byte[] bytes = new byte[500];
             var mcastPort = 4000;
             var dictionary = new Dictionary<string, string>();
-            IPAddress serverTCPAddres = IPAddress.Parse(localAddress);
-            var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddres, mcastPort);
+            IPAddress serverTCPAddress = IPAddress.Parse(localAddress);
+            var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddress, mcastPort);
             tcpSocket.Bind(serverTCPSocketEndPoint);
             tcpSocket.Listen(1);
             Task.Run(() =>
-                {
-                    while (true)
+            {
+                int countOfUsers = 0;
+                while (true)
                     {
                         var mySocket = tcpSocket.Accept();
-                        clientSockets.Add(mySocket);
+
+
+                        if (!dictionaryOfClientsAndGuids.Keys.Contains(mySocket))
+                        {
+
+                            var guid = String.Format("Пользователь " + countOfUsers);
+                            dictionaryOfClientsAndGuids.Add(mySocket, guid);
+                            sendMessageAboutConnection(mySocket);
+                            Thread.Sleep(1000);
+                            sendListOfClients();
+                        }
+
+
                         Task.Run(() =>
-                            {
+                        {
+                            Socket currentUser=null;
                                 while (true)
-                                { 
-                                foreach(Socket client in clientSockets)
-                                
-                                    bytes = bytes.Take(client.Receive(bytes)).ToArray();
+                                {
 
-                                if (bytes.Length == 0)
-                                    continue;
-
-                                string message = Encoding.UTF8.GetString(bytes);
-                                XDocument xdoc = new XDocument();
-                                xdoc = XDocument.Parse(message);
-
-                                    foreach (XElement elem in xdoc.Element("msg").Elements("data"))
+                                    foreach (Socket client in dictionaryOfClientsAndGuids.Keys)
                                     {
-                                        dictionary.Add(elem.Attribute("key").Value, elem.Attribute("value").Value);
+
+                                        bytes = bytes.Take(client.Receive(bytes)).ToArray();
+                                        currentUser = client;
                                     }
 
 
+                                    if (bytes.Length == 0)
+                                    continue;
+
+                                var message = Encoding.UTF8.GetString(bytes);
+                                var xdoc = new XDocument();
+                                xdoc = XDocument.Parse(message);
+
+                                    foreach (var elem in xdoc.Element("msg").Elements("data"))
+                                    {
+                                        dictionary.Add(elem.Attribute("key").Value, elem.Attribute("value").Value);
+
+                                    }
+
+                                    var clientName = dictionaryOfClientsAndGuids[currentUser];
                                     if (dictionary["Type"] == "Send")
                                     {
-                                        message = " somebody wrote " + dictionary["Text"];
+                                      
                                         var sendMessageDocument = new XDocument(
-                             new XElement("msg",
-                                new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Send")),
-                                new XElement("data", new XAttribute("key", "Author"), new XAttribute("value", "stupidName")),
-                                  new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", dictionary["Text"]))
-                                )); 
+                                            new XElement("msg",
+                                                new XElement("data", new XAttribute("key", "Type"),
+                                                    new XAttribute("value", "Send")),
+                                                new XElement("data", new XAttribute("key", "Author"),
+                                                    new XAttribute("value", clientName)),
+                                                new XElement("data", new XAttribute("key", "Text"),
+                                                    new XAttribute("value", dictionary["Text"]))
+                                            ));
 
+                                        foreach (var socket in dictionaryOfClientsAndGuids.Keys)
+                                            socket.Send(Encoding.UTF8.GetBytes(sendMessageDocument.ToString()));
 
-                                        mySocket.Send(Encoding.UTF8.GetBytes(sendMessageDocument.ToString()));
-                                        foreach (var address in clientEndPoints)
-                                            dictionary.Clear();
+                                        dictionary.Clear();
                                         bytes = new byte[500];
                                     }
                                 }
@@ -117,10 +141,48 @@ namespace NewServer
                 });
         }
 
+        private void sendMessageAboutConnection(Socket mySocket)
+        {
+            
+
+            var newConnectionMessage = new XDocument(
+                new XElement("msg",
+                    new XElement("data", new XAttribute("key", "Type"),
+                        new XAttribute("value", "Name")),
+                    new XElement("data", new XAttribute("key", "Name"),
+                        new XAttribute("value", dictionaryOfClientsAndGuids[mySocket]))));
+
+            foreach (var socket in dictionaryOfClientsAndGuids.Keys)
+                socket.Send(Encoding.UTF8.GetBytes(newConnectionMessage.ToString()));
+
+        }
+
+        private void sendListOfClients()
+        {
+            var list = "";
+            foreach (var str in dictionaryOfClientsAndGuids.Values)
+                list += str +",";
+
+            var listOfClientsDocument = new XDocument(
+                new XElement("msg",
+                    new XElement("data", new XAttribute("key", "Type"),
+                        new XAttribute("value", "List")),
+                    new XElement("data", new XAttribute("key", "List"),
+                        new XAttribute("value", list))));
+                    
+
+                    foreach (var socket in dictionaryOfClientsAndGuids.Keys)
+                socket.Send(Encoding.UTF8.GetBytes(listOfClientsDocument.ToString()));
+
+
+
+        }
+
         static void Main(string[] args)
         {
-            SendServerAddress();
-            ReceiveBroadcastMessages();
+            var program = new Program();
+            program.SendServerAddress();
+            program.ReceiveBroadcastMessages();
             Console.Read();
         }
     }

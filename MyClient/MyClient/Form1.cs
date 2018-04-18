@@ -13,13 +13,12 @@ namespace MyClient
 {
     public partial class Form1 : Form
     {
-        static string Host = Dns.GetHostName();
-        string LocalAddress = Dns.GetHostEntry(Host).AddressList[0].ToString();
         Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Stream,
                                         ProtocolType.Tcp);
-
         public delegate void Action<T>(string text);
+        string LocalAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0].ToString();
+         
 
         public Form1()
         {
@@ -47,43 +46,57 @@ namespace MyClient
             mcastSocket.SendTo(Encoding.UTF8.GetBytes(LocalAddress + ":" + mcastPort), multicastEndPoint);
             
             bytes = bytes.Take(mcastSocket.ReceiveFrom(bytes, ref serverEndPoint)).ToArray();
-            richTextBox1.AppendText(defineMessage(bytes));
+            //richTextBox1.AppendText(define_message(bytes));
             
             tcpSocket.Connect(serverEndPoint);
             
         }
 
-         void SendMessage(XDocument document)
+        void SendMessage(XDocument document)
         {
-              tcpSocket.Send(GetBytesToSendFromDocument(document));
-         }
+            tcpSocket.Send(GetBytesToSendFromDocument(document));
+        }
 
-        public string defineMessage(byte[] bytes)
+        public string define_message(byte[] bytes)
         {
-            var dictionary = new Dictionary<string, string>();
             var receivedMessage = GetDocumentFromReceivedBytes(bytes);
-            foreach (XElement elem in receivedMessage.Element("msg").Elements("data"))
+            var dictionary = receivedMessage.Element("msg").Elements("data").ToDictionary
+            (elem => elem.Attribute("key").Value,
+            elem => elem.Attribute("value").Value);
+
+            switch (dictionary["Type"])
             {
-                dictionary.Add(elem.Attribute("key").Value, elem.Attribute("value").Value);
+                case "Send":
+                    return $"{dictionary["Author"]} wrote  {dictionary["Text"]}";
+                case "Name":
+                    return $"{dictionary["Name"]} joined the chat";
+                case "List":
+                    
+                  
+                    Action<string> comboBoxAction = (collection) =>
+                    {
+                        char[] charSeparators = new char[] { ',' };
+                        var listOfUsers = collection.Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
+                        
+                        comboBox1.Items.Clear();
+
+                        foreach (var str in listOfUsers)
+                        comboBox1.Items.Add(str);
+                       
+                    
+                    };
+
+                    Invoke(comboBoxAction, dictionary["List"]);
+                    return $"Список юзеров обновлен!";
             }
 
-            if (dictionary["Type"] == "Send")
-            {
+            return "something went wrong!";
 
-                return $"{dictionary["Author"]} wrote  {dictionary["Text"]}";
+        }
 
-
-
-            }
-            if (dictionary["Type"] == "Name")
-            {
-
-                return $"{dictionary["Name"]} joined the chat";
-
-
-            }
-
-            return null;
+        private string[] updateListOfUsers(string[] listOfUsers)
+        {
+            return listOfUsers;
 
         }
 
@@ -93,15 +106,10 @@ namespace MyClient
          
             bytes = bytes.Take(tcpSocket.Receive(bytes)).ToArray();
 
-            return defineMessage(bytes);
+            return define_message(bytes);
         }
 
-        private byte[] GetBytesToSendFromDocument(XDocument document)
-        {
-            return Encoding.UTF8.GetBytes(document.ToString());
-
-
-        }
+     
         private XDocument GetDocumentFromString(string message)
         {
             var sendMessageDocument = new XDocument(
@@ -111,8 +119,15 @@ namespace MyClient
             return sendMessageDocument;
 
         }
+        private byte[] GetBytesToSendFromDocument(XDocument document)
+        {
+            return Encoding.UTF8.GetBytes(document.ToString());
+
+
+        }
         private XDocument GetDocumentFromReceivedBytes(byte[] bytes)
         {
+            
             return XDocument.Parse(Encoding.UTF8.GetString(bytes));
 
         }
@@ -129,11 +144,6 @@ namespace MyClient
             SendMessage(GetDocumentFromString(textBox1.Text));
         }
 
-        private void textBox2_KeyUp(object sender, KeyEventArgs e)
-        {
-
-        }
-
         private void timer1_Tick(object sender, EventArgs e)
         {
             Action<string> myAction =  (str) => richTextBox1.AppendText("\n" + str);
@@ -142,6 +152,7 @@ namespace MyClient
                 this.Invoke(myAction, ReceiveBroadcastMessages());
             }
              ).Start();
+            
         }
     }
 }
