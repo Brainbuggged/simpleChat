@@ -21,6 +21,7 @@ namespace MyClient
 
         //get the local address of our machine
         IPAddress LocalAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
+        private int localPort = 4001;
 
         private List<string> listOfUsersToSend = new List<string>();
 
@@ -34,17 +35,19 @@ namespace MyClient
         public EndPoint GetServerAddress()
         {
             //buffer for the received message UPD: need to be updated every time
-           var takenReceivedBytes = new byte[100];
-            var receivedBytesFromMulticast = new byte[500];
+           byte[] takenReceivedBytes;
+            var receivedBytesFromMulticast = new byte[100];
 
             //multicast address and port
             IPAddress mcastAddress = IPAddress.Parse("224.12.12.12");
             int  mcastPort = 4000;
+        
 
             //we need multicast socket to send both  addresses between host and clients
             Socket mcastSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Dgram,
                                         ProtocolType.Udp);
+            mcastSocket.Bind(new IPEndPoint(LocalAddress,localPort));
             //things that were described at https://msdn.microsoft.com/ru-ru/library/system.net.sockets.multicastoption(v=vs.110).aspx
             EndPoint serverEndPoint = new IPEndPoint(mcastAddress, mcastPort);
             var multicastEndPoint = new IPEndPoint(mcastAddress, mcastPort);   
@@ -52,11 +55,12 @@ namespace MyClient
             mcastSocket.SetSocketOption(SocketOptionLevel.IP,
                                         SocketOptionName.AddMembership,
                                         mcastOption);
-            //now we want to send ANY information to the server
-            mcastSocket.SendTo(Encoding.UTF8.GetBytes("Useless "), multicastEndPoint);
+            //now we want to send our localAddress:localPort information to the server
+            mcastSocket.SendTo(Encoding.UTF8.GetBytes(LocalAddress+":"+localPort), multicastEndPoint);
 
             // we need to 'cut' the buffer(problem with zero bytes)
-            takenReceivedBytes = receivedBytesFromMulticast.Take(mcastSocket.ReceiveFrom(receivedBytesFromMulticast, ref serverEndPoint)).ToArray();
+            var receivedCount = mcastSocket.ReceiveFrom(receivedBytesFromMulticast, ref serverEndPoint);
+            takenReceivedBytes = GetTrimmedBytes(receivedBytesFromMulticast, receivedCount);
             string stringEndpoint = Encoding.UTF8.GetString(takenReceivedBytes);
             char separator = ':';
             string[] strings = stringEndpoint.Split(separator);
@@ -65,7 +69,6 @@ namespace MyClient
 
             // now we want to connect our tcp socket to the server
             return newServerEP;
-
         }
 
         //sending message via tcp
@@ -78,7 +81,6 @@ namespace MyClient
         // and take the information we need
         public string DefineMessage(byte[] bytes)
         { 
-
             var receivedMessage = GetDocumentFromReceivedBytes(bytes);
             //creating the dictionary from the xml document to parse data correctly
             var dictionary = receivedMessage.Element("msg").Elements("data").ToDictionary
@@ -92,53 +94,46 @@ namespace MyClient
                 case "Name":
                     return $"{dictionary["Name"]} присоединился к чату";
                 case "List":
-                    
-                    // here we use this Action to write data into out control
+                    // here we use this Action to write data into our control
                     Action<string> comboBoxAction = (collection) =>
                     {
                         var charSeparators = new char[] { ',' };
                         var listOfUsers = collection.Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
-                        
                         comboBox1.Items.Clear();
-
                         foreach (var user in listOfUsers)
                             comboBox1.Items.Add(user);
-
-
                     };
-
                     Invoke(comboBoxAction, dictionary["List"]);
                     return $"Список юзеров обновлен!";
                 case "PrivateSend":
                     return $"{dictionary["Author"]} написал вам  {dictionary["Text"]}";
             }
-
             return "something went wrong!";
-
         }
 
    
         private  string  ReceiveBroadcastMessages()
         {
-            var receivedBytes = new byte[500];
-            var takenBytes = receivedBytes.Take(tcpSocket.Receive(receivedBytes)).ToArray();
+            var receivedBytes = new byte[2048];
+            var receivedCount = tcpSocket.Receive(receivedBytes);
+            var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
             return DefineMessage(takenBytes);
+            
         }
 
-        //private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
-        //{
-           
-        //    return receivedBytes.Take(tcpSocket.Receive(receivedBytes)).ToArray();
+        private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
+        {
 
-        //}
-        private XDocument GetDocumentFromString(string message)
+            return receivedBytes.Take(receivedCount).ToArray();
+
+        }
+        private XDocument CreateSendDocumentFrom(string message)
         {
             var sendMessageDocument = new XDocument(
                 new XElement("msg",
                     new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Send")),
                     new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", message))));
             return sendMessageDocument;
-
         }
         private byte[] GetBytesToSendFromDocument(XDocument document)
         {
@@ -149,16 +144,15 @@ namespace MyClient
             return XDocument.Parse(Encoding.UTF8.GetString(bytes));
         }
 
-        private void button1_Click(object sender, EventArgs e)
+        private void button1_OnClicked(object sender, EventArgs e)
         {
             tcpSocket.Connect(GetServerAddress());
             timer1.Start();
         }
 
-        private void button2_Click(object sender, EventArgs e)
+        private void button2_OnClicked(object sender, EventArgs e)
         {
-            
-            SendMessage(GetDocumentFromString(textBox1.Text));
+            SendMessage(CreateSendDocumentFrom(textBox1.Text));
         }
 
         private void timer1_Tick(object sender, EventArgs e)
@@ -166,10 +160,9 @@ namespace MyClient
             Action<string> myAction =  (str) => richTextBox1.AppendText(str +"\n");
             new Thread(() =>
             {
-                this.Invoke(myAction, ReceiveBroadcastMessages());
+                this.Invoke(myAction ,ReceiveBroadcastMessages());
             }
              ).Start();
-            
         }
 
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -179,10 +172,9 @@ namespace MyClient
             listView1.Items.Clear();
             foreach (var user in listOfUsersToSend)
                 listView1.Items.Add(user);
-
         }
 
-        private void button3_Click(object sender, EventArgs e)
+        private void button3_OnClicked(object sender, EventArgs e)
         {
             string userString = "";
             foreach (ListViewItem user in listView1.Items)
