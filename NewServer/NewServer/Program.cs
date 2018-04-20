@@ -80,7 +80,7 @@ namespace NewServer
             IPAddress serverTCPAddress = localAddress;
             var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddress, mcastPort);
 
-            //binding and then listening to server end point
+            // binding and then listening to server end point
             tcpSocket.Bind(serverTCPSocketEndPoint);
             tcpSocket.Listen(1);
             Task.Run(() =>
@@ -90,11 +90,11 @@ namespace NewServer
                 {
                    
                     var acceptedClient = tcpSocket.Accept();
-                    //after we accepted the connection 
-                    //the new thread starts
-                    //where we receive data from every client
+                    // after we accepted the connection 
+                    // the new thread starts
+                    // where we receive data from every client
 
-                    //here we are checking if there are any equal sockets
+                    // here we are checking if there are any equal sockets
                     if (!DictionaryOfClientsAndGuids.Keys.Contains(acceptedClient))
                     {
                         var guid = String.Format("Пользователь " + userCount);
@@ -102,8 +102,8 @@ namespace NewServer
                         userCount++;
                         SendMessageAboutConnection(acceptedClient);
 
-                        //without sleeping there would be an exception 
-                        //dunno how to fix it yet
+                        // without sleeping there would be an exception 
+                        // dunno how to fix it yet
                         Thread.Sleep(1000);
                         SendListOfClients();
                     }
@@ -117,15 +117,15 @@ namespace NewServer
                             var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
                             var xdoc = GetDocumentFromReceivedBytes(takenBytes);
 
-                            //filling the dictionary with data from takenbytes
+                            // filling the dictionary with data from takenbytes
                             foreach (var elem in xdoc.Element("msg").Elements("data"))
                             {
                                 dictionary.Add(elem.Attribute("key").Value, elem.Attribute("value").Value);
                             }
-                            //here we get the 'value' of our socket
+                            // here we get the 'value' of our socket
                             var clientName = DictionaryOfClientsAndGuids[acceptedClient];
 
-                            //determing the type of the message in if-else-if
+                            // determing the type of the message in if-else-if
                             if (dictionary["Type"] == "Send")
                             {
                                 var sendMessageDocument = GetDocumentFromStringAndClient(dictionary["Text"], clientName,"Send");
@@ -141,8 +141,8 @@ namespace NewServer
                                 var listOfUsers = dictionary["Persons"]
                                     .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
 
-                                //stupid foreaches for sending message to exact clients
-                                //need to be fixed actually
+                                // stupid foreaches for sending message to exact clients
+                                // need to be fixed actually
                                 foreach (var user in listOfUsers)
                                 foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                                     if (DictionaryOfClientsAndGuids[socket] == user)
@@ -154,8 +154,7 @@ namespace NewServer
                 }
             });
         }
-
-        //simple parser here
+        // simple parser here
         private XDocument GetDocumentFromStringAndClient(string message,string clientName,string type)
         {
             var sendMessageDocument = new XDocument(
@@ -169,7 +168,7 @@ namespace NewServer
                 ));
             return sendMessageDocument;
         }
-        //send it to every client in dictionary
+        // send it to every client in dictionary
         private void SendMessageAboutConnection(Socket acceptedClient)
         {         
             var newConnectionMessage = new XDocument(
@@ -182,14 +181,13 @@ namespace NewServer
             foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                 socket.Send(GetBytesToSendFromDocument(newConnectionMessage));
         }
-        //the same for this method
-        //maybe should've done one method for them?
+        // the same for this method
+        // maybe should've done one method for them?
         private void SendListOfClients()
         {
             var clientGuids = new StringBuilder();
             foreach (var str in DictionaryOfClientsAndGuids.Values)
                 clientGuids.Append(str + ",");
-
             var listOfClientsDocument = new XDocument(
                 new XElement("msg",
                     new XElement("data", new XAttribute("key", "Type"),
@@ -200,7 +198,7 @@ namespace NewServer
             foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                 socket.Send(GetBytesToSendFromDocument(listOfClientsDocument));
         }
-        //parsers  for messsages here
+        // parsers  for messsages here
         private byte[] GetBytesToSendFromDocument(XDocument document)
         {
             return Encoding.UTF8.GetBytes(document.ToString());
@@ -209,7 +207,7 @@ namespace NewServer
         {
             return XDocument.Parse(Encoding.UTF8.GetString(bytes));
         }
-        //simple trimming to make code more readable
+        // simple trimming to make code more readable
         private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
         {
             return receivedBytes.Take(receivedCount).ToArray();
