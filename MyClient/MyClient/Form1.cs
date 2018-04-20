@@ -13,53 +13,69 @@ namespace MyClient
 {
     public partial class Form1 : Form
     {
-        Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
+         Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Stream,
                                         ProtocolType.Tcp);
+        // we need this delegate to change richTextBox and comboBox
         public delegate void Action<T>(string text);
+        //get the local address of our machine
         string LocalAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0].ToString();
-         
 
         public Form1()
         {
             InitializeComponent();
         }
 
+        //we want to get  server local address 
         public void GetServerAddress()
         {
+            //buffer for the received message UPD: need to be updated every time
             byte[] bytes = new byte[500];
-            var dictionary = new Dictionary<string, string>();
+
+
+            //multicast address and port
             IPAddress mcastAddress = IPAddress.Parse("224.12.12.12");
-             int  mcastPort = 4000;
+            int  mcastPort = 4000;
+
+            //we need multicast socket to send both  addresses between host and clients
             Socket mcastSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Dgram,
                                         ProtocolType.Udp);
+            //things that were described at https://msdn.microsoft.com/ru-ru/library/system.net.sockets.multicastoption(v=vs.110).aspx
             EndPoint serverEndPoint = new IPEndPoint(mcastAddress, mcastPort);
-
-            IPEndPoint multicastEndPoint = new IPEndPoint(mcastAddress, mcastPort);
-           
-             MulticastOption mcastOption = new MulticastOption(mcastAddress, IPAddress.Parse(LocalAddress));
-
+            var multicastEndPoint = new IPEndPoint(mcastAddress, mcastPort);   
+             var mcastOption = new MulticastOption(mcastAddress, IPAddress.Parse(LocalAddress));
             mcastSocket.SetSocketOption(SocketOptionLevel.IP,
                                         SocketOptionName.AddMembership,
                                         mcastOption);
-            mcastSocket.SendTo(Encoding.UTF8.GetBytes(LocalAddress + ":" + mcastPort), multicastEndPoint);
-            
+            //now we want to send ANY information to the server
+            mcastSocket.SendTo(Encoding.UTF8.GetBytes("Useless "), multicastEndPoint);
+            // we need to 'cut' the buffer(problem with zero bytes)
             bytes = bytes.Take(mcastSocket.ReceiveFrom(bytes, ref serverEndPoint)).ToArray();
-            //richTextBox1.AppendText(define_message(bytes));
-            
-            tcpSocket.Connect(serverEndPoint);
+            string stringEndpoint = Encoding.UTF8.GetString(bytes);
+            char separator = ':';
+            string[] strings = stringEndpoint.Split(separator);
+            IPAddress serverAddress = IPAddress.Parse(strings[0]);
+            EndPoint newServerEP = new IPEndPoint(serverAddress, mcastPort);
+
+            // now we want to connect our tcp socket to the server
+            tcpSocket.Connect(newServerEP);
             
         }
 
+        //sending message via tcp
         void SendMessage(XDocument document)
         {
             tcpSocket.Send(GetBytesToSendFromDocument(document));
         }
 
+        //here we want to define the type of the received message
+        // and take the information we need
         public string define_message(byte[] bytes)
-        {
+        { 
+
             var receivedMessage = GetDocumentFromReceivedBytes(bytes);
+            //creating the dictionary from the xml document to parse data correctly
             var dictionary = receivedMessage.Element("msg").Elements("data").ToDictionary
             (elem => elem.Attribute("key").Value,
             elem => elem.Attribute("value").Value);
@@ -72,10 +88,10 @@ namespace MyClient
                     return $"{dictionary["Name"]} joined the chat";
                 case "List":
                     
-                  
+                    // here we use this Action to write data into out control
                     Action<string> comboBoxAction = (collection) =>
                     {
-                        char[] charSeparators = new char[] { ',' };
+                        var charSeparators = new char[] { ',' };
                         var listOfUsers = collection.Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
                         
                         comboBox1.Items.Clear();

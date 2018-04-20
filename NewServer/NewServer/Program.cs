@@ -35,7 +35,7 @@ namespace NewServer
                                                     mcastOption);
             var clientEndPoint = new IPEndPoint(IPAddress.Any, mcastPort) as EndPoint;
             IPAddress serverTCPAddress = IPAddress.Parse(localAddress);
-            var serverTCPSocketEndPoint= new IPEndPoint(serverTCPAddress,mcastPort);
+        
 
             Task.Run(() =>
             {//КОСТЫЛЬ ИСПРАВИТЬ
@@ -45,13 +45,12 @@ namespace NewServer
                        
                        bytes = bytes.Take(mcastSocket.ReceiveFrom(bytes, ref clientEndPoint)).ToArray();
                         var clientAddress = Encoding.UTF8.GetString(bytes);
-                        var newClientSendMessageDocument = new XDocument(
-                            new XElement("msg",
-                               new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Name")),
-                               new XElement("data", new XAttribute("key", "Name"), new XAttribute("value", "Пользователь " + countOfusers))));
-
+                        
+                        var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddress, mcastPort);
+                        var newClientSendMessageDocument = serverTCPSocketEndPoint.ToString();
+                    countOfusers++;
                         bytes = Encoding.UTF8.GetBytes(newClientSendMessageDocument.ToString());
-                       
+                        
                        mcastSocket.SendTo(bytes,clientEndPoint);
                      
 
@@ -82,6 +81,7 @@ namespace NewServer
 
                             var guid = String.Format("Пользователь " + countOfUsers);
                             dictionaryOfClientsAndGuids.Add(mySocket, guid);
+                            countOfUsers++;
                             sendMessageAboutConnection(mySocket);
                             Thread.Sleep(1000);
                             sendListOfClients();
@@ -93,12 +93,15 @@ namespace NewServer
                             Socket currentUser=null;
                                 while (true)
                                 {
-
-                                    foreach (Socket client in dictionaryOfClientsAndGuids.Keys)
+                                //TODO Need to think about async way of receiving messages from every client
+                                    foreach (var client in dictionaryOfClientsAndGuids.Keys)
                                     {
+                                       
+                                            bytes = bytes.Take(client.Receive(bytes)).ToArray();
+                                            currentUser = client;
+                                        
 
-                                        bytes = bytes.Take(client.Receive(bytes)).ToArray();
-                                        currentUser = client;
+
                                     }
 
 
