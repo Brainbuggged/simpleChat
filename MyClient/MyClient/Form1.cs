@@ -30,7 +30,6 @@ namespace MyClient
             InitializeComponent();
            
         }
-
         //we want to get  server local address 
         public EndPoint GetServerAddress()
         {
@@ -86,7 +85,7 @@ namespace MyClient
             var dictionary = receivedMessage.Element("msg").Elements("data").ToDictionary
             (elem => elem.Attribute("key").Value,
             elem => elem.Attribute("value").Value);
-
+            //simple switch-case to determine the type of the message
             switch (dictionary["Type"])
             {
                 case "Send":
@@ -94,39 +93,87 @@ namespace MyClient
                 case "Name":
                     return $"{dictionary["Name"]} присоединился к чату";
                 case "List":
-                    // here we use this Action to write data into our control
-                    Action<string> comboBoxAction = (collection) =>
+                    // here we use this Action to write data into our control   
+                    Invoke(new Action(collection =>
                     {
                         var charSeparators = new char[] { ',' };
                         var listOfUsers = collection.Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
                         comboBox1.Items.Clear();
                         foreach (var user in listOfUsers)
                             comboBox1.Items.Add(user);
-                    };
-                    Invoke(comboBoxAction, dictionary["List"]);
+
+                    }), dictionary["List"]);
+
                     return $"Список юзеров обновлен!";
                 case "PrivateSend":
                     return $"{dictionary["Author"]} написал вам  {dictionary["Text"]}";
             }
             return "something went wrong!";
         }
-
-   
+        //this method is in eternal loop 
+        //so it just waits until it gets data
+        //and start defining it
         private  string  ReceiveBroadcastMessages()
-        {
+        { 
             var receivedBytes = new byte[2048];
             var receivedCount = tcpSocket.Receive(receivedBytes);
             var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
             return DefineMessage(takenBytes);
-            
         }
-
-        private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
+        //connection to the server 
+        private void button1_OnClicked(object sender, EventArgs e)
+        {
+            tcpSocket.Connect(GetServerAddress());
+            timer1.Start();
+        }
+        //was created to place users into listview for further private messaging
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+           if(!listOfUsersToSend.Contains(comboBox1.SelectedItem.ToString()))
+               listOfUsersToSend.Add(comboBox1.SelectedItem.ToString());
+            listView1.Items.Clear();
+            foreach (var user in listOfUsersToSend)
+                listView1.Items.Add(user);
+        }
+        //method for private messages 
+        //everything is the same to usual messages
+        //but it also parses the elemets from listview
+        public void SendPrivateMessage(string message)
         {
 
-            return receivedBytes.Take(receivedCount).ToArray();
-
+            string userString = "";
+            foreach (ListViewItem user in listView1.Items)
+                userString += user.Text + ",";
+            var sendMessageDocument = new XDocument(
+                new XElement("msg",
+                    new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "PrivateSend")),
+                    new XElement("data", new XAttribute("key", "Persons"), new XAttribute("value", userString)),
+                    new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", message))
+                ));
+            tcpSocket.Send(GetBytesToSendFromDocument(sendMessageDocument));
         }
+
+        private void timer1_Tick(object sender, EventArgs e)
+        {
+            //simple action to put data in our richtextbox
+            new Thread(() =>
+                {
+                    this.Invoke(new Action(str => richTextBox1.AppendText(str + "\n")), ReceiveBroadcastMessages());
+                }
+            ).Start();
+        }
+
+        private void button2_OnClicked(object sender, EventArgs e)
+        {
+            SendMessage(CreateSendDocumentFrom(textBox1.Text));
+        }
+
+        private void button3_OnClicked(object sender, EventArgs e)
+        {
+            SendPrivateMessage(textBox2.Text);
+        }
+
+        //simple parsers
         private XDocument CreateSendDocumentFrom(string message)
         {
             var sendMessageDocument = new XDocument(
@@ -143,49 +190,10 @@ namespace MyClient
         {
             return XDocument.Parse(Encoding.UTF8.GetString(bytes));
         }
-
-        private void button1_OnClicked(object sender, EventArgs e)
+        //simple trimming to make code easier to read
+        private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
         {
-            tcpSocket.Connect(GetServerAddress());
-            timer1.Start();
-        }
-
-        private void button2_OnClicked(object sender, EventArgs e)
-        {
-            SendMessage(CreateSendDocumentFrom(textBox1.Text));
-        }
-
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-            Action<string> myAction =  (str) => richTextBox1.AppendText(str +"\n");
-            new Thread(() =>
-            {
-                this.Invoke(myAction ,ReceiveBroadcastMessages());
-            }
-             ).Start();
-        }
-
-        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           if(!listOfUsersToSend.Contains(comboBox1.SelectedItem.ToString()))
-               listOfUsersToSend.Add(comboBox1.SelectedItem.ToString());
-            listView1.Items.Clear();
-            foreach (var user in listOfUsersToSend)
-                listView1.Items.Add(user);
-        }
-
-        private void button3_OnClicked(object sender, EventArgs e)
-        {
-            string userString = "";
-            foreach (ListViewItem user in listView1.Items)
-                userString += user.Text + ",";
-            var sendMessageDocument = new XDocument(
-                new XElement("msg",
-                    new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "PrivateSend")),
-                    new XElement("data", new XAttribute("key", "Persons"), new XAttribute("value",userString)),
-                    new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", textBox2.Text))
-                    ));
-            tcpSocket.Send(GetBytesToSendFromDocument(sendMessageDocument));
+            return receivedBytes.Take(receivedCount).ToArray();
         }
     }
 }

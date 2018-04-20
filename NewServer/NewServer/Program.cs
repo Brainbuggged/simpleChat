@@ -27,15 +27,21 @@ namespace NewServer
             program.ReceiveBroadcastMessages();
             Console.Read();
         }
+        //sending address of the local machine for all the clients
         private void SendServerAddress()
         {
             byte[] receivedBytes = new byte[100];
+
+            //things that were described at https://msdn.microsoft.com/ru-ru/library/system.net.sockets.multicastoption(v=vs.110).aspx
             var mcastSocket = new Socket(AddressFamily.InterNetwork,
                 SocketType.Dgram,
                 ProtocolType.Udp);
             IPAddress mcastAddress = IPAddress.Parse("224.12.12.12");
             var mcastPort = 4000;
+   
+            //binding the socket to the local address
             mcastSocket.Bind(new IPEndPoint(IPAddress.Any, mcastPort));
+
             var mcastOption = new MulticastOption(mcastAddress, IPAddress.Any);
             mcastSocket.SetSocketOption(SocketOptionLevel.IP,
                 SocketOptionName.AddMembership,
@@ -51,9 +57,12 @@ namespace NewServer
                     var takenBytes  = GetTrimmedBytes(receivedBytes,receivedCount);
                     var ClientEndPoint = Encoding.UTF8.GetString(takenBytes);
                     var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddress, mcastPort);
+
+                    //an address we want to send
                     var serverAddressMessage = serverTCPSocketEndPoint.ToString();
 
                    var  bytesToSend = Encoding.UTF8.GetBytes(serverAddressMessage.ToString());
+
                     //separation
                     var strings = ClientEndPoint.Split(separator);
                     var remoteAddress = IPAddress.Parse(strings[0]);
@@ -70,6 +79,8 @@ namespace NewServer
             var mcastPort = 4000;
             IPAddress serverTCPAddress = localAddress;
             var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddress, mcastPort);
+
+            //binding and then listening to server end point
             tcpSocket.Bind(serverTCPSocketEndPoint);
             tcpSocket.Listen(1);
             Task.Run(() =>
@@ -77,13 +88,22 @@ namespace NewServer
                 int userCount = 0;
                 while (true)
                 {
+                   
                     var acceptedClient = tcpSocket.Accept();
+                    //after we accepted the connection 
+                    //the new thread starts
+                    //where we receive data from every client
+
+                    //here we are checking if there are any equal sockets
                     if (!DictionaryOfClientsAndGuids.Keys.Contains(acceptedClient))
                     {
                         var guid = String.Format("Пользователь " + userCount);
                         DictionaryOfClientsAndGuids.Add(acceptedClient, guid);
                         userCount++;
                         SendMessageAboutConnection(acceptedClient);
+
+                        //without sleeping there would be an exception 
+                        //dunno how to fix it yet
                         Thread.Sleep(1000);
                         SendListOfClients();
                     }
@@ -97,12 +117,15 @@ namespace NewServer
                             var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
                             var xdoc = GetDocumentFromReceivedBytes(takenBytes);
 
+                            //filling the dictionary with data from takenbytes
                             foreach (var elem in xdoc.Element("msg").Elements("data"))
                             {
                                 dictionary.Add(elem.Attribute("key").Value, elem.Attribute("value").Value);
                             }
-
+                            //here we get the 'value' of our socket
                             var clientName = DictionaryOfClientsAndGuids[acceptedClient];
+
+                            //determing the type of the message in if-else-if
                             if (dictionary["Type"] == "Send")
                             {
                                 var sendMessageDocument = GetDocumentFromStringAndClient(dictionary["Text"], clientName,"Send");
@@ -117,6 +140,9 @@ namespace NewServer
                                 var charSeparators = new char[] {','};
                                 var listOfUsers = dictionary["Persons"]
                                     .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
+
+                                //stupid foreaches for sending message to exact clients
+                                //need to be fixed actually
                                 foreach (var user in listOfUsers)
                                 foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                                     if (DictionaryOfClientsAndGuids[socket] == user)
@@ -128,6 +154,8 @@ namespace NewServer
                 }
             });
         }
+
+        //simple parser here
         private XDocument GetDocumentFromStringAndClient(string message,string clientName,string type)
         {
             var sendMessageDocument = new XDocument(
@@ -141,7 +169,7 @@ namespace NewServer
                 ));
             return sendMessageDocument;
         }
-
+        //send it to every client in dictionary
         private void SendMessageAboutConnection(Socket acceptedClient)
         {         
             var newConnectionMessage = new XDocument(
@@ -154,7 +182,8 @@ namespace NewServer
             foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                 socket.Send(GetBytesToSendFromDocument(newConnectionMessage));
         }
-
+        //the same for this method
+        //maybe should've done one method for them?
         private void SendListOfClients()
         {
             var clientGuids = new StringBuilder();
@@ -171,7 +200,7 @@ namespace NewServer
             foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                 socket.Send(GetBytesToSendFromDocument(listOfClientsDocument));
         }
-
+        //parsers  for messsages here
         private byte[] GetBytesToSendFromDocument(XDocument document)
         {
             return Encoding.UTF8.GetBytes(document.ToString());
@@ -180,11 +209,10 @@ namespace NewServer
         {
             return XDocument.Parse(Encoding.UTF8.GetString(bytes));
         }
+        //simple trimming to make code more readable
         private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
         {
-
             return receivedBytes.Take(receivedCount).ToArray();
-
         }
     }
 }
