@@ -140,9 +140,15 @@ namespace NewServer
                                 var charSeparators = new char[] {','};
                                 var listOfUsers = dictionary["Persons"]
                                     .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
-
+                               
                                 // stupid foreaches for sending message to exact clients
                                 // need to be fixed actually
+                                var specialMessageForSender = CreateSpecialDocument(dictionary["Text"], clientName,
+                                    dictionary["Persons"]);
+                                acceptedClient.Send(GetBytesToSendFromDocument(specialMessageForSender));
+                                Console.WriteLine("sadsad");
+
+                           
                                 foreach (var user in listOfUsers)
                                 foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                                     if (DictionaryOfClientsAndGuids[socket] == user)
@@ -168,6 +174,24 @@ namespace NewServer
                 ));
             return sendMessageDocument;
         }
+
+
+        private XDocument CreateSpecialDocument(string message, string clientName, string listOfPersons)
+        {
+            var sendMessageDocument = new XDocument(
+                new XElement("msg",
+                    new XElement("data", new XAttribute("key", "Type"),
+                        new XAttribute("value", "PrivateSend")),
+                    new XElement("data", new XAttribute("key", "Author"),
+                        new XAttribute("value", clientName)),
+                    new XElement("data", new XAttribute("key", "Persons"),
+                        new XAttribute("value", listOfPersons)),
+                    new XElement("data", new XAttribute("key", "Text"),
+                        new XAttribute("value", message))
+                ));
+            return sendMessageDocument;
+        }
+
         // send it to every client in dictionary
         private void SendMessageAboutConnection(Socket acceptedClient)
         {         
@@ -178,8 +202,8 @@ namespace NewServer
                     new XElement("data", new XAttribute("key", "Name"),
                         new XAttribute("value", DictionaryOfClientsAndGuids[acceptedClient]))));
 
-            foreach (var socket in DictionaryOfClientsAndGuids.Keys)
-                socket.Send(GetBytesToSendFromDocument(newConnectionMessage));
+            
+                acceptedClient.Send(GetBytesToSendFromDocument(newConnectionMessage));
         }
         // the same for this method
         // maybe should've done one method for them?

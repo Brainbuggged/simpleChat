@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Remoting.Messaging;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,7 @@ namespace MyClient
         // we need this delegate to change richTextBox and comboBox
         public delegate void Action(string text);
 
+        public string clientName="";
         // get the local address of our machine
         IPAddress LocalAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
         private int localPort = 4001;
@@ -81,13 +83,25 @@ namespace MyClient
             var dictionary = receivedMessage.Element("msg").Elements("data").ToDictionary
             (elem => elem.Attribute("key").Value,
             elem => elem.Attribute("value").Value);
+
+
             // simple switch-case to determine the type of the message
             switch (dictionary["Type"])
             {
                 case "Send":
-                    return $"{dictionary["Author"]} написал:  {dictionary["Text"]}";
+
+                    if (clientName == dictionary["Author"])
+                        return $"Вы написали: {dictionary["Text"]}";
+                    else
+                        return $"{dictionary["Author"]} написал:  {dictionary["Text"]}";
+
+
                 case "Name":
-                    return $"{dictionary["Name"]} присоединился к чату";
+                    clientName = dictionary["Name"];
+                        return $"Вы подключились к чату";
+
+
+
                 case "List":
                     // here we use this Action to write data into our control   
                     Invoke(new Action(collection =>
@@ -100,7 +114,13 @@ namespace MyClient
                     }), dictionary["List"]);
                     return $"Список юзеров обновлен!";
                 case "PrivateSend":
-                    return $"{dictionary["Author"]} написал вам  {dictionary["Text"]}";
+                    if (dictionary["Author"] == clientName)
+                    {
+                        if (dictionary.Count == 4)
+                            return $"Вы написали   {dictionary["Persons"]}:  {dictionary["Text"]}";
+                        else return $"{dictionary["Author"]} написал вам:  {dictionary["Text"]}";
+                    }
+                    else return $"{dictionary["Author"]} написал вам:  {dictionary["Text"]}";
             }
             return "something went wrong!";
         }
