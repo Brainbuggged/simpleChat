@@ -12,7 +12,7 @@ namespace NewServer
 {
     class Program
     {
-         IPAddress localAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
+         IPAddress localAddress = Dns.GetHostByName(Dns.GetHostName()).AddressList[1];
 
         Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
             SocketType.Stream,

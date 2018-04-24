@@ -16,13 +16,13 @@ namespace MyClient
     {
          Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Stream,
-                                        ProtocolType.Tcp);
+                                        ProtocolType.IP);
         // we need this delegate to change richTextBox and comboBox
         public delegate void Action(string text);
 
         public string clientName="";
         // get the local address of our machine
-        IPAddress LocalAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
+        IPAddress LocalAddress = Dns.GetHostByName(Dns.GetHostName()).AddressList[1];
         private int localPort = 4001;
         private List<string> listOfUsersToSend = new List<string>();
         public Form1()
@@ -91,14 +91,14 @@ namespace MyClient
                 case "Send":
 
                     if (clientName == dictionary["Author"])
-                        return $"Вы написали: {dictionary["Text"]}";
+                        return "Вы написали:" + dictionary["Text"];
                     else
-                        return $"{dictionary["Author"]} написал:  {dictionary["Text"]}";
+                        return dictionary["Author"]+" написал: " +dictionary["Text"];
 
 
                 case "Name":
                     clientName = dictionary["Name"];
-                        return $"Вы подключились к чату";
+                        return "Вы подключились к чату";
 
 
 
@@ -112,15 +112,15 @@ namespace MyClient
                         foreach (var user in listOfUsers)
                             comboBox1.Items.Add(user);
                     }), dictionary["List"]);
-                    return $"Список юзеров обновлен!";
+                    return "Список юзеров обновлен!";
                 case "PrivateSend":
                     if (dictionary["Author"] == clientName)
                     {
                         if (dictionary.Count == 4)
-                            return $"Вы написали   {dictionary["Persons"]}:  {dictionary["Text"]}";
-                        else return $"{dictionary["Author"]} написал вам:  {dictionary["Text"]}";
+                            return "Вы написали  " + dictionary["Persons"] +":"+  dictionary["Text"];
+                        else return dictionary["Author"]+ "написал вам:"+  dictionary["Text"];
                     }
-                    else return $"{dictionary["Author"]} написал вам:  {dictionary["Text"]}";
+                    else return dictionary["Author"]+" написал вам: " +dictionary["Text"];
             }
             return "something went wrong!";
         }
