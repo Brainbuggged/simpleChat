@@ -14,6 +14,7 @@ namespace NewServer
     {
          IPAddress localAddress = Dns.GetHostByName(Dns.GetHostName()).AddressList[1];
 
+        private static readonly int localPort = 4000;
         Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
             SocketType.Stream,
             ProtocolType.Tcp);
@@ -76,9 +77,9 @@ namespace NewServer
 
         private void ReceiveBroadcastMessages()
         {
-            var mcastPort = 4000;
-            IPAddress serverTCPAddress = localAddress;
-            var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddress, mcastPort);
+            
+           
+            var serverTCPSocketEndPoint = new IPEndPoint(localAddress, localPort);
 
             // binding and then listening to server end point
             tcpSocket.Bind(serverTCPSocketEndPoint);
@@ -113,49 +114,64 @@ namespace NewServer
                         {
                             var dictionary = new Dictionary<string, string>();
                             var receivedBytes = new byte[2048];
-                            var receivedCount = acceptedClient.Receive(receivedBytes);
-                            var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
-                            var xdoc = GetDocumentFromReceivedBytes(takenBytes);
-
-                            // filling the dictionary with data from takenbytes
-                            foreach (var elem in xdoc.Element("msg").Elements("data"))
+                            try
                             {
-                                dictionary.Add(elem.Attribute("key").Value, elem.Attribute("value").Value);
-                            }
-                            // here we get the 'value' of our socket
-                            var clientName = DictionaryOfClientsAndGuids[acceptedClient];
+                                var receivedCount = acceptedClient.Receive(receivedBytes);
 
-                            // determing the type of the message in if-else-if
-                            if (dictionary["Type"] == "Send")
-                            {
-                                var sendMessageDocument = GetDocumentFromStringAndClient(dictionary["Text"], clientName,"Send");
-                                foreach (var socket in DictionaryOfClientsAndGuids.Keys)
-                                    socket.Send(GetBytesToSendFromDocument(sendMessageDocument));
-                                dictionary.Clear();
-                            }
-                            else if (dictionary["Type"] == "PrivateSend")
-                            {
-                                var sendMessageDocument =
-                                    GetDocumentFromStringAndClient(dictionary["Text"], clientName,"PrivateSend");
-                                var charSeparators = new char[] {','};
-                                var listOfUsers = dictionary["Persons"]
-                                    .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
-                               
-                                // stupid foreaches for sending message to exact clients
-                                // need to be fixed actually
-                                var specialMessageForSender = CreateSpecialDocument(dictionary["Text"], clientName,
-                                    dictionary["Persons"]);
-                                acceptedClient.Send(GetBytesToSendFromDocument(specialMessageForSender));
-                                Console.WriteLine("sadsad");
 
-                           
-                                foreach (var user in listOfUsers)
-                                foreach (var socket in DictionaryOfClientsAndGuids.Keys)
-                                    if (DictionaryOfClientsAndGuids[socket] == user)
+
+                                var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
+                                var xdoc = GetDocumentFromReceivedBytes(takenBytes);
+
+                                // filling the dictionary with data from takenbytes
+                                foreach (var elem in xdoc.Element("msg").Elements("f"))
+                                {
+                                    dictionary.Add(elem.Attribute("n").Value, elem.Attribute("v").Value);
+                                }
+
+                                // here we get the 'value' of our socket
+                                var clientName = DictionaryOfClientsAndGuids[acceptedClient];
+
+                                // determing the type of the message in if-else-if
+                                if (dictionary["Type"] == "Send")
+                                {
+                                    var sendMessageDocument =
+                                        GetDocumentFromStringAndClient(dictionary["Text"], clientName, "Send");
+                                    foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                                         socket.Send(GetBytesToSendFromDocument(sendMessageDocument));
-                                dictionary.Clear();
+                                    dictionary.Clear();
+                                }
+                                else if (dictionary["Type"] == "PrivateSend")
+                                {
+                                    var sendMessageDocument =
+                                        GetDocumentFromStringAndClient(dictionary["Text"], clientName, "PrivateSend");
+                                    var charSeparators = new char[] {','};
+                                    var listOfUsers = dictionary["Persons"]
+                                        .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
+
+                                    // stupid foreaches for sending message to exact clients
+                                    // need to be fixed actually
+                                    var specialMessageForSender = CreateSpecialDocument(dictionary["Text"], clientName,
+                                        dictionary["Persons"]);
+                                    acceptedClient.Send(GetBytesToSendFromDocument(specialMessageForSender));
+
+
+
+                                    foreach (var user in listOfUsers)
+                                    foreach (var socket in DictionaryOfClientsAndGuids.Keys)
+                                        if (DictionaryOfClientsAndGuids[socket] == user)
+                                            socket.Send(GetBytesToSendFromDocument(sendMessageDocument));
+                                    dictionary.Clear();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                DictionaryOfClientsAndGuids.Remove(acceptedClient);
+                                SendListOfClients();
+
                             }
                         }
+                        
                     });
                 }
             });
@@ -165,12 +181,12 @@ namespace NewServer
         {
             var sendMessageDocument = new XDocument(
                 new XElement("msg",
-                    new XElement("data", new XAttribute("key", "Type"),
-                        new XAttribute("value", type)),
-                    new XElement("data", new XAttribute("key", "Author"),
-                        new XAttribute("value", clientName)),
-                    new XElement("data", new XAttribute("key", "Text"),
-                        new XAttribute("value", message))
+                    new XElement("f", new XAttribute("n", "Type"),
+                        new XAttribute("v", type)),
+                    new XElement("f", new XAttribute("n", "Author"),
+                        new XAttribute("v", clientName)),
+                    new XElement("f", new XAttribute("n", "Text"),
+                        new XAttribute("v", message))
                 ));
             return sendMessageDocument;
         }
@@ -180,14 +196,14 @@ namespace NewServer
         {
             var sendMessageDocument = new XDocument(
                 new XElement("msg",
-                    new XElement("data", new XAttribute("key", "Type"),
-                        new XAttribute("value", "PrivateSend")),
-                    new XElement("data", new XAttribute("key", "Author"),
-                        new XAttribute("value", clientName)),
-                    new XElement("data", new XAttribute("key", "Persons"),
-                        new XAttribute("value", listOfPersons)),
-                    new XElement("data", new XAttribute("key", "Text"),
-                        new XAttribute("value", message))
+                    new XElement("f", new XAttribute("n", "Type"),
+                        new XAttribute("v", "PrivateSend")),
+                    new XElement("f", new XAttribute("n", "Author"),
+                        new XAttribute("v", clientName)),
+                    new XElement("f", new XAttribute("n", "Persons"),
+                        new XAttribute("v", listOfPersons)),
+                    new XElement("f", new XAttribute("n", "Text"),
+                        new XAttribute("v", message))
                 ));
             return sendMessageDocument;
         }
@@ -197,10 +213,10 @@ namespace NewServer
         {         
             var newConnectionMessage = new XDocument(
                 new XElement("msg",
-                    new XElement("data", new XAttribute("key", "Type"),
-                        new XAttribute("value", "Name")),
-                    new XElement("data", new XAttribute("key", "Name"),
-                        new XAttribute("value", DictionaryOfClientsAndGuids[acceptedClient]))));
+                    new XElement("f", new XAttribute("n", "Type"),
+                        new XAttribute("v", "Name")),
+                    new XElement("f", new XAttribute("n", "Name"),
+                        new XAttribute("v", DictionaryOfClientsAndGuids[acceptedClient]))));
 
             
                 acceptedClient.Send(GetBytesToSendFromDocument(newConnectionMessage));
@@ -214,10 +230,10 @@ namespace NewServer
                 clientGuids.Append(str + ",");
             var listOfClientsDocument = new XDocument(
                 new XElement("msg",
-                    new XElement("data", new XAttribute("key", "Type"),
-                        new XAttribute("value", "List")),
-                    new XElement("data", new XAttribute("key", "List"),
-                        new XAttribute("value", clientGuids))));
+                    new XElement("f", new XAttribute("n", "Type"),
+                        new XAttribute("v", "List")),
+                    new XElement("f", new XAttribute("n", "List"),
+                        new XAttribute("v", clientGuids))));
 
             foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                 socket.Send(GetBytesToSendFromDocument(listOfClientsDocument));

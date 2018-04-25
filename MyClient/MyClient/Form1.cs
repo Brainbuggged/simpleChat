@@ -16,14 +16,15 @@ namespace MyClient
     {
          Socket tcpSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Stream,
-                                        ProtocolType.IP);
+                                        ProtocolType.Tcp);
         // we need this delegate to change richTextBox and comboBox
         public delegate void Action(string text);
 
         public string clientName="";
         // get the local address of our machine
-        IPAddress LocalAddress = Dns.GetHostByName(Dns.GetHostName()).AddressList[1];
-        private int localPort = 4001;
+        private readonly IPAddress LocalAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList
+            .Last(x => x.AddressFamily == AddressFamily.InterNetwork);
+        private readonly int localPort = 4001;
         private List<string> listOfUsersToSend = new List<string>();
         public Form1()
         {
@@ -31,7 +32,7 @@ namespace MyClient
            
         }
         // we want to get  server local address 
-        public EndPoint GetServerAddress()
+        public  EndPoint GetServerAddress()
         {
             // buffer for the received message UPD: need to be updated every time
            byte[] takenReceivedBytes;
@@ -80,9 +81,9 @@ namespace MyClient
         { 
             var receivedMessage = GetDocumentFromReceivedBytes(bytes);
             // creating the dictionary from the xml document to parse data correctly
-            var dictionary = receivedMessage.Element("msg").Elements("data").ToDictionary
-            (elem => elem.Attribute("key").Value,
-            elem => elem.Attribute("value").Value);
+            var dictionary = receivedMessage.Element("msg").Elements("f").ToDictionary
+            (elem => elem.Attribute("n").Value,
+            elem => elem.Attribute("v").Value);
 
 
             // simple switch-case to determine the type of the message
@@ -159,9 +160,9 @@ namespace MyClient
                 userString += user.Text + ",";
             var sendMessageDocument = new XDocument(
                 new XElement("msg",
-                    new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "PrivateSend")),
-                    new XElement("data", new XAttribute("key", "Persons"), new XAttribute("value", userString)),
-                    new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", message))
+                    new XElement("f", new XAttribute("n", "Type"), new XAttribute("v", "PrivateSend")),
+                    new XElement("f", new XAttribute("n", "Persons"), new XAttribute("v", userString)),
+                    new XElement("f", new XAttribute("n", "Text"), new XAttribute("v", message))
                 ));
             tcpSocket.Send(GetBytesToSendFromDocument(sendMessageDocument));
         }
@@ -190,8 +191,8 @@ namespace MyClient
         {
             var sendMessageDocument = new XDocument(
                 new XElement("msg",
-                    new XElement("data", new XAttribute("key", "Type"), new XAttribute("value", "Send")),
-                    new XElement("data", new XAttribute("key", "Text"), new XAttribute("value", message))));
+                    new XElement("f", new XAttribute("n", "Type"), new XAttribute("v", "Send")),
+                    new XElement("f", new XAttribute("n", "Text"), new XAttribute("v", message))));
             return sendMessageDocument;
         }
         private byte[] GetBytesToSendFromDocument(XDocument document)
@@ -206,6 +207,11 @@ namespace MyClient
         private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
         {
             return receivedBytes.Take(receivedCount).ToArray();
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            //listView1.Items.RemoveAt(listView1.Foc
         }
     }
 }
