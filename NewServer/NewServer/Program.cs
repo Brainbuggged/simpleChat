@@ -116,6 +116,7 @@ namespace NewServer
                             var receivedBytes = new byte[2048];
                             try
                             {
+
                                 var receivedCount = acceptedClient.Receive(receivedBytes);
 
 
@@ -144,14 +145,16 @@ namespace NewServer
                                 else if (dictionary["Type"] == "PrivateSend")
                                 {
                                     var sendMessageDocument =
-                                        GetDocumentFromStringAndClient(dictionary["Text"], clientName, "PrivateSend");
+                                        GetDocumentFromStringAndClient(dictionary["Text"], clientName,
+                                            "PrivateSend");
                                     var charSeparators = new char[] {','};
                                     var listOfUsers = dictionary["Persons"]
                                         .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
 
                                     // stupid foreaches for sending message to exact clients
                                     // need to be fixed actually
-                                    var specialMessageForSender = CreateSpecialDocument(dictionary["Text"], clientName,
+                                    var specialMessageForSender = CreateSpecialDocument(dictionary["Text"],
+                                        clientName,
                                         dictionary["Persons"]);
                                     acceptedClient.Send(GetBytesToSendFromDocument(specialMessageForSender));
 
@@ -162,16 +165,19 @@ namespace NewServer
                                         if (DictionaryOfClientsAndGuids[socket] == user)
                                             socket.Send(GetBytesToSendFromDocument(sendMessageDocument));
                                     dictionary.Clear();
+
                                 }
                             }
-                            catch (Exception ex)
+                            catch (SocketException ex)
                             {
                                 DictionaryOfClientsAndGuids.Remove(acceptedClient);
+                                
                                 SendListOfClients();
+                                break;
 
                             }
                         }
-                        
+
                     });
                 }
             });
@@ -236,6 +242,7 @@ namespace NewServer
                         new XAttribute("v", clientGuids))));
 
             foreach (var socket in DictionaryOfClientsAndGuids.Keys)
+                if (socket.Connected)
                 socket.Send(GetBytesToSendFromDocument(listOfClientsDocument));
         }
         // parsers  for messsages here

@@ -67,6 +67,8 @@ namespace MyClient
             IPAddress serverAddress = IPAddress.Parse(strings[0]);
             EndPoint newServerEP = new IPEndPoint(serverAddress, mcastPort);
 
+
+            button1.Enabled = false;
             // now we want to connect our tcp socket to the server
             return newServerEP;
         }
@@ -109,9 +111,9 @@ namespace MyClient
                     {
                         var charSeparators = new char[] { ',' };
                         var listOfUsers = collection.Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
-                        comboBox1.Items.Clear();
+                        listBox1.Items.Clear();
                         foreach (var user in listOfUsers)
-                            comboBox1.Items.Add(user);
+                            listBox1.Items.Add(user);
                     }), dictionary["List"]);
                     return "Список юзеров обновлен!";
                 case "PrivateSend":
@@ -119,7 +121,7 @@ namespace MyClient
                     {
                         if (dictionary.Count == 4)
                             return "Вы написали  " + dictionary["Persons"] +":"+  dictionary["Text"];
-                        else return dictionary["Author"]+ "написал вам:"+  dictionary["Text"];
+                        else return dictionary["Author"]+ " написал вам:"+  dictionary["Text"];
                     }
                     else return dictionary["Author"]+" написал вам: " +dictionary["Text"];
             }
@@ -131,9 +133,18 @@ namespace MyClient
         private  string  ReceiveBroadcastMessages()
         { 
             var receivedBytes = new byte[2048];
-            var receivedCount = tcpSocket.Receive(receivedBytes);
-            var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
-            return DefineMessage(takenBytes);
+            try
+            {
+                var receivedCount = tcpSocket.Receive(receivedBytes);
+                var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
+                return DefineMessage(takenBytes);
+            }
+            catch (Exception ex)
+            {
+                timer1.Stop();
+              return "Сервер разорвал соединение";
+            }
+          
         }
         // connection to the server 
         private void button1_OnClicked(object sender, EventArgs e)
@@ -141,23 +152,18 @@ namespace MyClient
             tcpSocket.Connect(GetServerAddress());
             timer1.Start();
         }
-        // was created to place users into listview for further private messaging
-        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           if(!listOfUsersToSend.Contains(comboBox1.SelectedItem.ToString()))
-               listOfUsersToSend.Add(comboBox1.SelectedItem.ToString());
-            listView1.Items.Clear();
-            foreach (var user in listOfUsersToSend)
-                listView1.Items.Add(user);
-        }
         // method for private messages 
         // everything is the same to usual messages
         // but it also parses the elemets from listview
         public void SendPrivateMessage(string message)
         {
             string userString = "";
-            foreach (ListViewItem user in listView1.Items)
-                userString += user.Text + ",";
+
+            //foreach (ListViewItem user in listView1.Items)
+            //    userString += user.Text + ",";
+
+
+           userString =  string.Join(",", listBox1.SelectedItems.Cast<string>().Where(x => x != Text));
             var sendMessageDocument = new XDocument(
                 new XElement("msg",
                     new XElement("f", new XAttribute("n", "Type"), new XAttribute("v", "PrivateSend")),
@@ -172,19 +178,25 @@ namespace MyClient
             // simple action to put data in our richtextbox
             new Thread(() =>
                 {
-                    this.Invoke(new Action(str => richTextBox1.AppendText(str + "\n")), ReceiveBroadcastMessages());
+                    try
+                    {
+                        this.Invoke(new Action(str => richTextBox1.AppendText(str + "\n")), ReceiveBroadcastMessages());
+                    }
+                    catch(Exception ex)
+                    {
+                        tcpSocket.Close();
+                        tcpSocket.Dispose();
+                        Application.Exit();
+                    }
                 }
             ).Start();
         }
 
         private void button2_OnClicked(object sender, EventArgs e)
         {
+            if(listBox1.SelectedItems.Count==0)
             SendMessage(CreateSendDocumentFrom(textBox1.Text));
-        }
-
-        private void button3_OnClicked(object sender, EventArgs e)
-        {
-            SendPrivateMessage(textBox2.Text);
+            else SendPrivateMessage(textBox1.Text);
         }
         // simple parsers
         private XDocument CreateSendDocumentFrom(string message)
@@ -209,9 +221,11 @@ namespace MyClient
             return receivedBytes.Take(receivedCount).ToArray();
         }
 
-        private void button4_Click(object sender, EventArgs e)
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
         {
-            //listView1.Items.RemoveAt(listView1.Foc
+            tcpSocket.Close();
+            tcpSocket.Dispose();
+            Application.Exit();
         }
     }
 }
