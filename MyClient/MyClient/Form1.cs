@@ -29,25 +29,23 @@ namespace MyClient
         public Form1()
         {
             InitializeComponent();
-           
         }
         // we want to get  server local address 
         public  EndPoint GetServerAddress()
         {
             // buffer for the received message UPD: need to be updated every time
-           byte[] takenReceivedBytes;
             var receivedBytesFromMulticast = new byte[100];
 
             // multicast address and port
             IPAddress mcastAddress = IPAddress.Parse("224.12.12.12");
-            int  mcastPort = 4000;
-        
+
             // we need multicast socket to send both  addresses between host and clients
             Socket mcastSocket = new Socket(AddressFamily.InterNetwork,
                                         SocketType.Dgram,
                                         ProtocolType.Udp);
             mcastSocket.Bind(new IPEndPoint(LocalAddress,localPort));
 
+            int mcastPort = 4000;
             // things that were described at https://msdn.microsoft.com/ru-ru/library/system.net.sockets.multicastoption(v=vs.110).aspx
             EndPoint serverEndPoint = new IPEndPoint(mcastAddress, mcastPort);
             var multicastEndPoint = new IPEndPoint(mcastAddress, mcastPort);   
@@ -60,15 +58,14 @@ namespace MyClient
 
             // we need to 'cut' the buffer(problem with zero bytes)
             var receivedCount = mcastSocket.ReceiveFrom(receivedBytesFromMulticast, ref serverEndPoint);
-            takenReceivedBytes = GetTrimmedBytes(receivedBytesFromMulticast, receivedCount);
+            var takenReceivedBytes = GetTrimmedBytes(receivedBytesFromMulticast, receivedCount);
             string stringEndpoint = Encoding.UTF8.GetString(takenReceivedBytes);
             char separator = ':';
             string[] strings = stringEndpoint.Split(separator);
             IPAddress serverAddress = IPAddress.Parse(strings[0]);
             EndPoint newServerEP = new IPEndPoint(serverAddress, mcastPort);
-
-
             button1.Enabled = false;
+
             // now we want to connect our tcp socket to the server
             return newServerEP;
         }
@@ -92,19 +89,13 @@ namespace MyClient
             switch (dictionary["Type"])
             {
                 case "Send":
-
                     if (clientName == dictionary["Author"])
                         return "Вы написали:" + dictionary["Text"];
                     else
                         return dictionary["Author"]+" написал: " +dictionary["Text"];
-
-
                 case "Name":
                     clientName = dictionary["Name"];
                         return "Вы подключились к чату";
-
-
-
                 case "List":
                     // here we use this Action to write data into our control   
                     Invoke(new Action(collection =>
@@ -139,7 +130,7 @@ namespace MyClient
                 var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
                 return DefineMessage(takenBytes);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 timer1.Stop();
               return "Сервер разорвал соединение";
@@ -157,12 +148,7 @@ namespace MyClient
         // but it also parses the elemets from listview
         public void SendPrivateMessage(string message)
         {
-            string userString = "";
-
-            //foreach (ListViewItem user in listView1.Items)
-            //    userString += user.Text + ",";
-
-
+            var userString = "";
            userString =  string.Join(",", listBox1.SelectedItems.Cast<string>().Where(x => x != Text));
             var sendMessageDocument = new XDocument(
                 new XElement("msg",
@@ -182,7 +168,7 @@ namespace MyClient
                     {
                         this.Invoke(new Action(str => richTextBox1.AppendText(str + "\n")), ReceiveBroadcastMessages());
                     }
-                    catch(Exception ex)
+                    catch(Exception)
                     {
                         tcpSocket.Close();
                         tcpSocket.Dispose();
@@ -198,6 +184,7 @@ namespace MyClient
             SendMessage(CreateSendDocumentFrom(textBox1.Text));
             else SendPrivateMessage(textBox1.Text);
         }
+
         // simple parsers
         private XDocument CreateSendDocumentFrom(string message)
         {
@@ -207,14 +194,17 @@ namespace MyClient
                     new XElement("f", new XAttribute("n", "Text"), new XAttribute("v", message))));
             return sendMessageDocument;
         }
+
         private byte[] GetBytesToSendFromDocument(XDocument document)
         {
             return Encoding.UTF8.GetBytes(document.ToString());
         }
+
         private XDocument GetDocumentFromReceivedBytes(byte[] bytes)
         {
             return XDocument.Parse(Encoding.UTF8.GetString(bytes));
         }
+
         // simple trimming to make code easier to read
         private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
         {
