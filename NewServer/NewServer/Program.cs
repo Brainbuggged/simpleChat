@@ -32,15 +32,16 @@ namespace NewServer
         private void SendServerAddress()
         {
             byte[] receivedBytes = new byte[100];
+            const int mcastPort = 4000;
 
-            //things that were described at https://msdn.microsoft.com/ru-ru/library/system.net.sockets.multicastoption(v=vs.110).aspx
+            // things that were described at https://msdn.microsoft.com/ru-ru/library/system.net.sockets.multicastoption(v=vs.110).aspx
             var mcastSocket = new Socket(AddressFamily.InterNetwork,
                 SocketType.Dgram,
                 ProtocolType.Udp);
             IPAddress mcastAddress = IPAddress.Parse("224.12.12.12");
-            var mcastPort = 4000;
+            
    
-            //binding the socket to the local address
+            // binding the socket to the local endpoint
             mcastSocket.Bind(new IPEndPoint(IPAddress.Any, mcastPort));
 
             var mcastOption = new MulticastOption(mcastAddress, IPAddress.Any);
@@ -49,7 +50,7 @@ namespace NewServer
                 mcastOption);
             var clientEndPoint = new IPEndPoint(IPAddress.Any, mcastPort) as EndPoint;
             IPAddress serverTCPAddress = localAddress;
-            var separator = ':';
+            const char separator = ':';
             Task.Run(() =>
             {
                 while (true)
@@ -59,12 +60,13 @@ namespace NewServer
                     var ClientEndPoint = Encoding.UTF8.GetString(takenBytes);
                     var serverTCPSocketEndPoint = new IPEndPoint(serverTCPAddress, mcastPort);
 
-                    //an address we want to send
+                    // an address we want to send
                     var serverAddressMessage = serverTCPSocketEndPoint.ToString();
 
                    var  bytesToSend = Encoding.UTF8.GetBytes(serverAddressMessage.ToString());
 
-                    //separation
+                    // separation
+                    // simply divide an array 
                     var strings = ClientEndPoint.Split(separator);
                     var remoteAddress = IPAddress.Parse(strings[0]);
                     var remotePort = int.Parse(strings[1]);
@@ -86,7 +88,7 @@ namespace NewServer
             tcpSocket.Listen(1);
             Task.Run(() =>
             {
-                int userCount = 0;
+                var userCount = 0;
                 while (true)
                 {
                    
@@ -96,15 +98,15 @@ namespace NewServer
                     // where we receive data from every client
 
                     // here we are checking if there are any equal sockets
+                    var guid = String.Format("Пользователь " + userCount);
                     if (!DictionaryOfClientsAndGuids.Keys.Contains(acceptedClient))
                     {
-                        var guid = String.Format("Пользователь " + userCount);
                         DictionaryOfClientsAndGuids.Add(acceptedClient, guid);
                         userCount++;
                         SendMessageAboutConnection(acceptedClient);
 
                         // without sleeping there would be an exception 
-                        // dunno how to fix it yet
+                        // just because we do not have much time for each operation
                         Thread.Sleep(1000);
                         SendListOfClients();
                     }
@@ -116,11 +118,7 @@ namespace NewServer
                             var receivedBytes = new byte[2048];
                             try
                             {
-
                                 var receivedCount = acceptedClient.Receive(receivedBytes);
-
-
-
                                 var takenBytes = GetTrimmedBytes(receivedBytes, receivedCount);
                                 var xdoc = GetDocumentFromReceivedBytes(takenBytes);
 
@@ -134,38 +132,41 @@ namespace NewServer
                                 var clientName = DictionaryOfClientsAndGuids[acceptedClient];
 
                                 // determing the type of the message in if-else-if
-                                if (dictionary["Type"] == "Send")
+                                switch (dictionary["Type"])
                                 {
-                                    var sendMessageDocument =
-                                        GetDocumentFromStringAndClient(dictionary["Text"], clientName, "Send");
-                                    foreach (var socket in DictionaryOfClientsAndGuids.Keys)
-                                        socket.Send(GetBytesToSendFromDocument(sendMessageDocument));
-                                    dictionary.Clear();
-                                }
-                                else if (dictionary["Type"] == "PrivateSend")
-                                {
-                                    var sendMessageDocument =
-                                        GetDocumentFromStringAndClient(dictionary["Text"], clientName,
-                                            "PrivateSend");
-                                    var charSeparators = new char[] {','};
-                                    var listOfUsers = dictionary["Persons"]
-                                        .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
-
-                                    // stupid foreaches for sending message to exact clients
-                                    // need to be fixed actually
-                                    var specialMessageForSender = CreateSpecialDocument(dictionary["Text"],
-                                        clientName,
-                                        dictionary["Persons"]);
-                                    acceptedClient.Send(GetBytesToSendFromDocument(specialMessageForSender));
-
-
-
-                                    foreach (var user in listOfUsers)
-                                    foreach (var socket in DictionaryOfClientsAndGuids.Keys)
-                                        if (DictionaryOfClientsAndGuids[socket] == user)
+                                    case "Send":
+                                    {
+                                        var sendMessageDocument =
+                                            GetDocumentFromStringAndClient(dictionary["Text"], clientName, "Send");
+                                        foreach (var socket in DictionaryOfClientsAndGuids.Keys)
                                             socket.Send(GetBytesToSendFromDocument(sendMessageDocument));
-                                    dictionary.Clear();
+                                        dictionary.Clear();
+                                        break;
+                                    }
+                                    case "PrivateSend":
+                                    {
+                                        var sendMessageDocument =
+                                            GetDocumentFromStringAndClient(dictionary["Text"], clientName,
+                                                "PrivateSend");
+                                        var charSeparators = new char[] {','};
+                                        var listOfUsers = dictionary["Persons"]
+                                            .Split(charSeparators, StringSplitOptions.RemoveEmptyEntries);
 
+                                        // stupid foreaches for sending message to exact clients
+                                        // need to be fixed actually
+                                        var specialMessageForSender = CreateSpecialDocument(dictionary["Text"],
+                                            clientName,
+                                            dictionary["Persons"]);
+                                        acceptedClient.Send(GetBytesToSendFromDocument(specialMessageForSender));
+
+                                        // stupid way of finding every client in the list
+                                        foreach (var user in listOfUsers)
+                                        foreach (var socket in DictionaryOfClientsAndGuids.Keys)
+                                            if (DictionaryOfClientsAndGuids[socket] == user)
+                                                socket.Send(GetBytesToSendFromDocument(sendMessageDocument));
+                                        dictionary.Clear();
+                                        break;
+                                    }
                                 }
                             }
                             catch (SocketException ex)
@@ -174,10 +175,8 @@ namespace NewServer
                                 
                                 SendListOfClients();
                                 break;
-
                             }
                         }
-
                     });
                 }
             });
@@ -257,6 +256,7 @@ namespace NewServer
         // simple trimming to make code more readable
         private byte[] GetTrimmedBytes(byte[] receivedBytes, int receivedCount)
         {
+            if (receivedBytes == null) throw new ArgumentNullException(nameof(receivedBytes));
             return receivedBytes.Take(receivedCount).ToArray();
         }
     }
