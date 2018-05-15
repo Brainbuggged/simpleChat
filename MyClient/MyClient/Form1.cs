@@ -84,7 +84,6 @@ namespace MyClient
             (elem => elem.Attribute("n").Value,
             elem => elem.Attribute("v").Value);
 
-
             // simple switch-case to determine the type of the message
             switch (dictionary["Type"])
             {
@@ -183,6 +182,7 @@ namespace MyClient
             if(listBox1.SelectedItems.Count==0)
             SendMessage(CreateSendDocumentFrom(textBox1.Text));
             else SendPrivateMessage(textBox1.Text);
+            listBox1.SelectedItems.Clear();
         }
 
         // simple parsers
