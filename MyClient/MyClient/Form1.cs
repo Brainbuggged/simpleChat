@@ -190,11 +190,13 @@ namespace MyClient
 
         public void SendAndShowMessage()
         {
-
-            if (listBox1.SelectedItems.Count == 0)
-                SendMessage(CreateSendDocumentFrom(textBox1.Text));
-            else SendPrivateMessage(textBox1.Text);
-            listBox1.SelectedItems.Clear();
+            if (!String.IsNullOrEmpty(textBox1.Text))
+            {
+                if (listBox1.SelectedItems.Count == 0)
+                    SendMessage(CreateSendDocumentFrom(textBox1.Text));
+                else SendPrivateMessage(textBox1.Text);
+                listBox1.SelectedItems.Clear();
+            }
 
 
             textBox1.Clear();
@@ -235,14 +237,15 @@ namespace MyClient
 
         private void textBox1_KeyDown(object sender, KeyEventArgs e)
         {
-
+            e.SuppressKeyPress = true;
         }
 
         private void textBox1_KeyPress(object sender, KeyPressEventArgs e)
         {
             if (e.KeyChar == Convert.ToChar(Keys.Return))
             {
-               SendAndShowMessage();
+               
+                SendAndShowMessage();
             }
         }
     }
