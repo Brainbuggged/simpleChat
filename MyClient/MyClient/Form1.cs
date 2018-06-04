@@ -115,6 +115,7 @@ namespace MyClient
                     }
                     else return dictionary["Author"]+" написал вам: " +dictionary["Text"];
             }
+
             return "something went wrong!";
         }
         // this method is in eternal loop 
@@ -132,7 +133,12 @@ namespace MyClient
             catch (Exception)
             {
                 timer1.Stop();
-              return "Сервер разорвал соединение";
+                tcpSocket.Close();
+                tcpSocket.Dispose();
+                Application.Exit();
+                
+                //useless message
+                return "FIN";
             }
           
         }
@@ -179,10 +185,19 @@ namespace MyClient
 
         private void button2_OnClicked(object sender, EventArgs e)
         {
-            if(listBox1.SelectedItems.Count==0)
-            SendMessage(CreateSendDocumentFrom(textBox1.Text));
+            SendAndShowMessage();
+        }
+
+        public void SendAndShowMessage()
+        {
+
+            if (listBox1.SelectedItems.Count == 0)
+                SendMessage(CreateSendDocumentFrom(textBox1.Text));
             else SendPrivateMessage(textBox1.Text);
             listBox1.SelectedItems.Clear();
+
+
+            textBox1.Clear();
         }
 
         // simple parsers
@@ -216,6 +231,19 @@ namespace MyClient
             tcpSocket.Close();
             tcpSocket.Dispose();
             Application.Exit();
+        }
+
+        private void textBox1_KeyDown(object sender, KeyEventArgs e)
+        {
+
+        }
+
+        private void textBox1_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (e.KeyChar == Convert.ToChar(Keys.Return))
+            {
+               SendAndShowMessage();
+            }
         }
     }
 }

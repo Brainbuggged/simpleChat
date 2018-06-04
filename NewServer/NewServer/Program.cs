@@ -73,15 +73,14 @@ namespace NewServer
                     var remotePort = int.Parse(strings[1]);
 
                     mcastSocket.SendTo(bytesToSend, new IPEndPoint(remoteAddress, remotePort));
-                    Console.WriteLine(remoteAddress +":"+ remotePort+ " подключился к чатику ");
+                    Console.WriteLine(remoteAddress +":"+ remotePort+ " подключился к чату "+
+                                      DateTime.Now.Hour+":" + DateTime.Now.Minute+":" +DateTime.Now.Second);
                 }
             });
         }
 
         private void ReceiveBroadcastMessages()
-        {
-            
-           
+        {      
             var serverTCPSocketEndPoint = new IPEndPoint(localAddress, localPort);
 
             // binding and then listening to server end point
@@ -173,7 +172,6 @@ namespace NewServer
                             catch (SocketException ex)
                             {
                                 DictionaryOfClientsAndGuids.Remove(acceptedClient);
-                                
                                 SendListOfClients();
                                 break;
                             }
